@@ -248,12 +248,12 @@ function calcStandings(tid) {
     h.pf += m.homeScore; h.pc += m.awayScore;
     a.pf += m.awayScore; a.pc += m.homeScore;
     var diff = Math.abs(m.homeScore - m.awayScore);
-    if (m.homeScore > m.awayScore) { h.pg++; h.pts += 3; a.pp++; }
-    else if (m.homeScore < m.awayScore) { a.pg++; a.pts += 3; h.pp++; }
-    else { h.pe++; h.pts++; a.pe++; a.pts++; }
+    if (m.homeScore > m.awayScore) { h.pg++; h.pts += 4; a.pp++; }
+    else if (m.homeScore < m.awayScore) { a.pg++; a.pts += 4; h.pp++; }
+    else { h.pe++; h.pts += 2; a.pe++; a.pts += 2; }
     if ((m.homeTries || 0) >= 4) h.pts++;
     if ((m.awayTries || 0) >= 4) a.pts++;
-    if (diff < 7) {
+    if (diff <= 7) {
       if (m.homeScore < m.awayScore) h.pts++;
       if (m.awayScore < m.homeScore) a.pts++;
     }

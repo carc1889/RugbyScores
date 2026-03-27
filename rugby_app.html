@@ -412,7 +412,7 @@ function renderAdmin() {
       '<div class="form-group"><label>Torneo</label><select id="newMatchTournament" onchange="onMatchTournamentChange()">' + tournOpts2 + '</select></div>' +
       '<div class="form-row"><div class="form-group"><label>Equipo local</label><select id="newMatchHome">' + teamsOpts + '</select></div>' +
       '<div class="form-group"><label>Equipo visitante</label><select id="newMatchAway">' + teamsOpts + '</select></div></div>' +
-      '<div class="form-group"><label>Fecha</label><select id="newMatchRound">' + buildRoundOptions(state.tournaments.length ? state.tournaments[0].id : 0) + '</select></div>' +
+      '<div class="form-group"><label>Fecha</label><select id="newMatchRound" onchange="onRoundChange()">' + buildRoundOptions(state.tournaments.length ? state.tournaments[0].id : 0) + '</select></div>' +
       '<div class="form-group"><label>Fecha del partido</label><input id="newMatchDate" type="date" value="' + new Date().toISOString().split('T')[0] + '"></div>' +
       '<div class="form-group"><label>Estado</label><select id="newMatchStatus"><option value="upcoming">Proximo</option><option value="live">En vivo</option><option value="final">Final</option></select></div>' +
       '<div id="scoreFields">' +
@@ -421,11 +421,14 @@ function renderAdmin() {
         '<div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5">+1 pt si 4+ trys &nbsp;|&nbsp; +1 pt al perdedor si diferencia &lt; 7 pts</div>' +
       '</div>' +
       '<button class="btn-primary" id="btnAddMatch" onclick="addMatch()">+ Agregar partido</button>' +
-      '<div class="divider"></div><div class="subsection-title">Partidos registrados</div>' + matchList;
+      '<div class="divider"></div><div class="subsection-title">Partidos de la fecha seleccionada</div><div id="adminMatchList"></div>';
 
     document.getElementById('newMatchStatus').addEventListener('change', function() {
       document.getElementById('scoreFields').style.opacity = this.value === 'upcoming' ? '0.4' : '1';
     });
+    document.getElementById('newMatchRound').addEventListener('change', onRoundChange);
+    // Trigger on render to populate list and date
+    onRoundChange();
   }
 }
 
@@ -471,6 +474,38 @@ function buildRoundOptions(tournamentId) {
 function onMatchTournamentChange() {
   var tid = parseInt(document.getElementById('newMatchTournament').value);
   document.getElementById('newMatchRound').innerHTML = buildRoundOptions(tid);
+  onRoundChange();
+}
+
+// When round changes, auto-fill date and filter match list
+function onRoundChange() {
+  var round = document.getElementById('newMatchRound') ? document.getElementById('newMatchRound').value : null;
+  var tid = document.getElementById('newMatchTournament') ? parseInt(document.getElementById('newMatchTournament').value) : null;
+  if (!round || !tid) return;
+  // Auto-fill date from existing match in same round
+  var existing = state.matches.find(function(m){ return m.tournamentId === tid && m.round === round && m.date; });
+  if (existing) {
+    document.getElementById('newMatchDate').value = existing.date;
+  } else {
+    document.getElementById('newMatchDate').value = new Date().toISOString().split('T')[0];
+  }
+  // Filter match list
+  renderAdminMatchList(round, tid);
+}
+
+function renderAdminMatchList(round, tid) {
+  var el = document.getElementById('adminMatchList');
+  if (!el) return;
+  var filtered = state.matches.filter(function(m){ return m.tournamentId === tid && m.round === round; });
+  if (!filtered.length) { el.innerHTML = '<div class="empty-state">No hay partidos para esta fecha.</div>'; return; }
+  el.innerHTML = filtered.map(function(m) {
+    var h = getTeam(m.homeId), a = getTeam(m.awayId);
+    if (!h || !a) return '';
+    var pillClass = m.status === 'final' ? 'pill-final' : m.status === 'live' ? 'pill-live' : 'pill-upcoming';
+    var pillText = m.status === 'final' ? 'Final' : m.status === 'live' ? 'En vivo' : 'Proximo';
+    var scoreStr = m.status !== 'upcoming' ? m.homeScore + ' - ' + m.awayScore + ' (' + (m.homeTries||0) + '/' + (m.awayTries||0) + ' trys)' : 'vs';
+    return '<div class="admin-list-item"><div class="item-left" style="flex-direction:column;align-items:flex-start;gap:2px"><div style="font-weight:600;font-size:13px">' + h.name + ' ' + scoreStr + ' ' + a.name + '</div><div style="font-size:11px;color:var(--muted)">' + m.round + ' · ' + m.date + '<span class="badge-pill ' + pillClass + '">' + pillText + '</span></div></div><div style="display:flex;gap:6px"><button class="edit-btn" onclick="openEditMatch(' + m.id + ')">&#9998;</button><button class="del-btn" onclick="deleteMatch(' + m.id + ')">&#x2715;</button></div></div>';
+  }).join('');
 }
 
 // CRUD

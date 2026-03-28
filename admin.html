@@ -632,8 +632,8 @@ async function addAdminUser() {
   btn.disabled = true; btn.textContent = 'Creando usuario...'; msg.textContent = '';
 
   try {
-    // Step 1: Create user in Supabase Auth using service role key
-    var authRes = await fetch(SB_URL + '/auth/v1/admin/users', {
+    // Step 1: Invite user via Supabase Auth (sends invitation email automatically)
+    var authRes = await fetch(SB_URL + '/auth/v1/invite', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -642,8 +642,7 @@ async function addAdminUser() {
       },
       body: JSON.stringify({
         email: email,
-        email_confirm: false,   // forces them to confirm via email
-        invite_by_email: true   // sends the invitation email automatically
+        data: { role: role }
       })
     });
     var authData = await authRes.json();

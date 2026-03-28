@@ -167,6 +167,7 @@
 // ─── CONFIG ──────────────────────────────────────────────────
 const SB_URL = 'https://hwpodschtbigiyceirpj.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh3cG9kc2NodGJpZ2l5Y2VpcnBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MjUzOTgsImV4cCI6MjA5MDEwMTM5OH0.TPnq-4sEYhzqLmhjvbTuJhBHw-TbMeqfY5RrT65NiZE';
+const SB_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh3cG9kc2NodGJpZ2l5Y2VpcnBqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDUyNTM5OCwiZXhwIjoyMDkwMTAxMzk4fQ.s9TBGbaHOkpYLp_-FLaP9gK8sqolF-ikoQ695umyDaA';
 
 // ─── STATE ───────────────────────────────────────────────────
 let session = null; // { access_token, user }
@@ -585,43 +586,92 @@ function renderUsuarios(main) {
       '<td>'+u.email+'</td>'+
       '<td><span class="role-tag '+(u.role==='superadmin'?'role-superadmin':'role-teamadmin')+'">'+u.role+'</span></td>'+
       '<td><span class="team-tag">'+teamName+'</span></td>'+
-      '<td><button class="del-btn" onclick="deleteAdminUser(\''+u.id+'\')">&#x2715;</button></td>'+
+      '<td><button class="del-btn" onclick="deleteAdminUser(''+u.id+'')">&#x2715;</button></td>'+
     '</tr>';
   }).join('');
 
   main.innerHTML =
     '<div class="page-title">👥 Usuarios Admin</div>'+
     '<div class="info-box">'+
-      'Para crear un usuario: primero invitalo desde <strong>Supabase → Authentication → Users → Invite</strong> con su email. '+
-      'Luego registralo aqui abajo con su rol y equipo asignado.'+
+      'El usuario recibirá un email de invitación para configurar su contraseña. '+
+      'Los admins de equipo solo pueden cargar resultados de sus partidos.'+
     '</div>'+
     '<div class="section-card">'+
-      '<div class="section-card-title">Registrar usuario admin</div>'+
-      '<div class="form-group"><label>Email (debe existir en Supabase Auth)</label><input id="uEmail" type="email" placeholder="usuario@ejemplo.com"></div>'+
+      '<div class="section-card-title">Crear nuevo usuario</div>'+
+      '<div class="form-group"><label>Email</label><input id="uEmail" type="email" placeholder="usuario@ejemplo.com"></div>'+
       '<div class="form-row">'+
-        '<div class="form-group"><label>Rol</label><select id="uRole"><option value="teamadmin">Admin de equipo</option><option value="superadmin">Superadmin</option></select></div>'+
-        '<div class="form-group"><label>Equipo (si es team-admin)</label><select id="uTeam">'+teamOpts+'</select></div>'+
+        '<div class="form-group"><label>Rol</label>'+
+          '<select id="uRole" onchange="onRoleChange()">'+
+            '<option value="teamadmin">Admin de equipo</option>'+
+            '<option value="superadmin">Superadmin</option>'+
+          '</select>'+
+        '</div>'+
+        '<div class="form-group" id="teamField"><label>Equipo asignado</label><select id="uTeam">'+teamOpts+'</select></div>'+
       '</div>'+
-      '<button class="btn-primary" id="btnAddU" onclick="addAdminUser()">+ Registrar usuario</button>'+
+      '<button class="btn-primary" id="btnAddU" onclick="addAdminUser()">+ Crear usuario y enviar invitación</button>'+
+      '<div id="uMsg" style="font-size:12px;margin-top:10px;text-align:center;min-height:18px;"></div>'+
     '</div>'+
     '<div class="section-card">'+
       '<div class="section-card-title">Usuarios registrados</div>'+
-      (rows ? '<table class="users-table"><thead><tr><th>Email</th><th>Rol</th><th>Equipo</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>' : '<div class="empty-state">Sin usuarios admin registrados</div>')+
+      (rows ? '<table class="users-table"><thead><tr><th>Email</th><th>Rol</th><th>Equipo</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>' : '<div class="empty-state">Sin usuarios registrados</div>')+
     '</div>';
 }
 
+function onRoleChange() {
+  var role = document.getElementById('uRole').value;
+  document.getElementById('teamField').style.opacity = role === 'superadmin' ? '0.4' : '1';
+}
 async function addAdminUser() {
-  var email=document.getElementById('uEmail').value.trim();
-  var role=document.getElementById('uRole').value;
-  var team_id=document.getElementById('uTeam').value||null;
-  if(!email) return showToast('Ingresa el email','error');
-  if(role==='teamadmin'&&!team_id) return showToast('Asigna un equipo al admin','error');
-  var btn=document.getElementById('btnAddU'); btn.disabled=true; btn.textContent='Guardando...';
+  var email = document.getElementById('uEmail').value.trim();
+  var role = document.getElementById('uRole').value;
+  var team_id = document.getElementById('uTeam').value || null;
+  var msg = document.getElementById('uMsg');
+  if (!email) return showToast('Ingresa el email', 'error');
+  if (role === 'teamadmin' && !team_id) return showToast('Asigna un equipo al admin de equipo', 'error');
+  var btn = document.getElementById('btnAddU');
+  btn.disabled = true; btn.textContent = 'Creando usuario...'; msg.textContent = '';
+
   try {
-    var res=await sbInsert('admin_users',{email,role,team_id:team_id?parseInt(team_id):null});
+    // Step 1: Create user in Supabase Auth using service role key
+    var authRes = await fetch(SB_URL + '/auth/v1/admin/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SB_SERVICE_KEY,
+        'Authorization': 'Bearer ' + SB_SERVICE_KEY
+      },
+      body: JSON.stringify({
+        email: email,
+        email_confirm: false,   // forces them to confirm via email
+        invite_by_email: true   // sends the invitation email automatically
+      })
+    });
+    var authData = await authRes.json();
+    if (!authRes.ok) throw new Error(authData.msg || authData.message || JSON.stringify(authData));
+
+    // Step 2: Register in admin_users table
+    var res = await sbInsert('admin_users', {
+      email: email,
+      role: role,
+      team_id: team_id ? parseInt(team_id) : null
+    });
     state.adminUsers.push(res[0]);
-    showToast('Usuario registrado'); navigate('usuarios');
-  } catch(e){showToast('Error: '+e.message,'error');btn.disabled=false;btn.textContent='+ Registrar usuario';}
+
+    msg.style.color = 'var(--accent)';
+    msg.textContent = 'Usuario creado. Se envió un email de invitación a ' + email;
+    showToast('Usuario creado');
+    // Reset form
+    document.getElementById('uEmail').value = '';
+    document.getElementById('uRole').value = 'teamadmin';
+    document.getElementById('uTeam').value = '';
+    // Re-render list
+    navigate('usuarios');
+  } catch(e) {
+    msg.style.color = 'var(--red)';
+    msg.textContent = 'Error: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = '+ Crear usuario y enviar invitación';
+  }
 }
 
 async function deleteAdminUser(id) {

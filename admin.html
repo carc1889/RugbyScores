@@ -586,7 +586,7 @@ function renderUsuarios(main) {
       '<td>'+u.email+'</td>'+
       '<td><span class="role-tag '+(u.role==='superadmin'?'role-superadmin':'role-teamadmin')+'">'+u.role+'</span></td>'+
       '<td><span class="team-tag">'+teamName+'</span></td>'+
-      '<td><button class="del-btn" onclick="deleteAdminUser(''+u.id+'')">&#x2715;</button></td>'+
+      '<td><button class="del-btn" onclick="deleteAdminUser('+u.id+')">&#x2715;</button></td>'+
     '</tr>';
   }).join('');
 

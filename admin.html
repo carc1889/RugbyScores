@@ -362,6 +362,8 @@ function openEditTournament(id) {
     '<div class="form-group"><label>Fechas</label><input id="etRounds" type="number" min="1" max="50" value="'+(t.rounds||10)+'"></div></div>'+ 
     '<div class="form-row"><div class="form-group"><label>¿Tiene zonas?</label><div style="display:flex;gap:10px;margin-top:6px"><label><input type="radio" name="etHasZones" value="no"'+(!hasZones?' checked':'')+' onchange="onTournamentZonesToggle()"> No</label><label><input type="radio" name="etHasZones" value="yes"'+(hasZones?' checked':'')+' onchange="onTournamentZonesToggle()"> Sí</label></div></div>'+ 
     '<div class="form-group" id="etZoneCountContainer" style="display:'+(hasZones?'block':'none')+';"><label>Cantidad de zonas</label><input id="etZoneCount" type="number" min="2" max="10" value="'+zoneCount+'"></div></div>'+ 
+    '<button class="btn-primary" id="btnSaveT" onclick="saveEditTournament()">Guardar cambios</button>'
+  );
 }
 
 async function saveEditTournament() {

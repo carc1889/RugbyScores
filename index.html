@@ -167,6 +167,16 @@ function renderMain() {
 function setMainTab(tab){state.mainTab=tab;document.querySelectorAll('nav button').forEach((b,i)=>b.classList.toggle('active',(i===0&&tab==='resultados')||(i===1&&tab==='tabla')));renderMain();}
 function selectTournament(id){state.selectedTournament=id;renderSidebar();renderMain();}
 
+// Detectar token de invitacion o recovery en el hash y redirigir
+(function() {
+  var hash = window.location.hash;
+  if (hash && hash.indexOf('type=invite') !== -1) {
+    window.location.replace('reset-password.html' + hash);
+  } else if (hash && hash.indexOf('type=recovery') !== -1) {
+    window.location.replace('reset-password.html' + hash);
+  }
+})();
+
 loadData();
 </script>
 </body>

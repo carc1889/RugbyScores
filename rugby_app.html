@@ -426,7 +426,7 @@ function renderAdmin() {
       '<div class="form-group"><label>Torneo</label><select id="newTeamTournament" onchange="onTeamTournamentChange()">' + tournOpts + '</select></div>' +
       '<div class="form-group" id="newTeamZoneContainer" style="display:none;"><label>Zona</label><select id="newTeamZone"></select></div>' +
       '<div class="form-group"><label>Nombre del equipo</label><input id="newTeamName" type="text" placeholder="ej: Jockey Club RC"></div>' +
-      '<div class="form-row"><div class="form-group"><label>Abreviatura (3-4 letras)</label><input id="newTeamShort" type="text" maxlength="4" placeholder="ej: JCR"></div>' +
+      '<div class="form-row"><div class="form-group"><label>Abreviatura (hasta 6 letras)</label><input id="newTeamShort" type="text" maxlength="6" placeholder="ej: JCR"></div>' +
       '<div class="form-group"><label>Color</label><input id="newTeamColor" type="color" value="#4a90d9" style="height:42px;padding:4px"></div></div>' +
       '<button class="btn-primary" id="btnAddTeam" onclick="addTeam()">+ Agregar equipo</button>' +
       '<div class="divider"></div><div class="subsection-title">Equipos existentes</div>' + teamList;

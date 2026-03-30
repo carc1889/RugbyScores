@@ -172,7 +172,7 @@ const SB_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmF
 // ─── STATE ───────────────────────────────────────────────────
 let session = null; // { access_token, user }
 let currentUser = null; // { email, role, team_id }
-let state = { tournaments:[], teams:[], matches:[], adminUsers:[], currentPage:'partidos', lastRound:null };
+let state = { tournaments:[], teams:[], matches:[], byes:[], adminUsers:[], currentPage:'partidos', lastRound:null };
 
 // ─── SUPABASE HELPERS ────────────────────────────────────────
 function authHeaders() {
@@ -250,10 +250,11 @@ async function startApp() {
   document.getElementById('userRoleLabel').textContent = currentUser.role === 'superadmin' ? '⭐ Superadmin' : '🏉 Admin de equipo';
 
   // Load data
-  var r = await Promise.all([sbGet('tournaments'),sbGet('teams'),sbGet('matches')]);
+  var r = await Promise.all([sbGet('tournaments'),sbGet('teams'),sbGet('matches'),sbGet('team_byes')]);
   state.tournaments = r[0];
   state.teams = r[1].map(t=>Object.assign({},t,{tournamentId:t.tournament_id}));
   state.matches = r[2].map(m=>Object.assign({},m,{tournamentId:m.tournament_id,homeId:m.home_id,awayId:m.away_id,homeScore:m.home_score,awayScore:m.away_score,homeTries:m.home_tries,awayTries:m.away_tries}));
+  state.byes = r[3]||[];
   if(currentUser.role==='superadmin') {
     var u = await sbGet('admin_users').catch(()=>[]);
     state.adminUsers = u;
@@ -497,6 +498,14 @@ function renderPartidos(main) {
       '<button class="btn-primary" id="btnAddM" onclick="addMatch()">+ Agregar partido</button>'+
     '</div>'+
     '<div class="section-card">'+
+      '<div class="section-card-title">Registrar Fecha Libre</div>'+
+      '<div class="form-group"><label>Torneo</label><select id="mByeTournament" onchange="onMByeTournamentChange()">'+tournOpts+'</select></div>'+
+      '<div class="form-group"><label>Equipo</label><select id="mByeTeam"></select></div>'+
+      '<div class="form-group"><label>Fecha</label><select id="mByeRound" onchange="onMByeRoundChange()">'+buildRoundOptions(firstTid)+'</select></div>'+
+      '<div class="form-group"><label>Fecha calendario</label><input id="mByeDate" type="date" value="'+new Date().toISOString().split('T')[0]+'"></div>'+
+      '<button class="btn-primary" id="btnAddMBye" onclick="addBye()">+ Registrar Fecha Libre</button>'+
+    '</div>'+
+    '<div class="section-card">'+
       '<div class="section-card-title">Partidos de la fecha seleccionada</div>'+
       '<div id="matchList"></div>'+
     '</div>';
@@ -508,6 +517,38 @@ function renderPartidos(main) {
 }
 
 function getTeamName(id){var t=state.teams.find(t=>t.id===id);return t?t.name:'?';}
+
+function onMByeTournamentChange() {
+  var tid = parseInt(document.getElementById('mByeTournament').value);
+  document.getElementById('mByeRound').innerHTML = buildRoundOptions(tid);
+  var teamsOpts = state.teams.filter(t=>t.tournamentId===tid).map(t=>'<option value="'+t.id+'">'+t.name+' ('+t.short+')</option>').join('');
+  document.getElementById('mByeTeam').innerHTML = teamsOpts;
+  onMByeRoundChange();
+}
+
+function onMByeRoundChange() {
+  var round = document.getElementById('mByeRound').value;
+  var tid = document.getElementById('mByeTournament').value;
+  if(!round || !tid) return;
+  var existing = state.matches.find(m=>m.tournamentId===parseInt(tid)&&m.round===round&&m.date);
+  document.getElementById('mByeDate').value = existing ? existing.date : new Date().toISOString().split('T')[0];
+}
+
+async function addBye() {
+  var team_id = parseInt(document.getElementById('mByeTeam').value);
+  var tournament_id = parseInt(document.getElementById('mByeTournament').value);
+  var round = document.getElementById('mByeRound').value;
+  var date = document.getElementById('mByeDate').value;
+  if(!team_id||!tournament_id||!round) return showToast('Completa todos los campos','error');
+  var btn = document.getElementById('btnAddMBye');
+  btn.disabled=true;btn.textContent='Guardando...';
+  try {
+    var res = await sbInsert('team_byes',{team_id,tournament_id,round,date});
+    state.byes.push(res[0]);
+    showToast('Fecha libre registrada');
+    navigate('partidos');
+  } catch(e){showToast('Error: '+e.message,'error');btn.disabled=false;btn.textContent='+ Registrar Fecha Libre';}
+}
 
 function buildRoundOptions(tid) {
   var tourn=state.tournaments.find(t=>t.id===tid), total=tourn&&tourn.rounds?tourn.rounds:10, opts='';

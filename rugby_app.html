@@ -206,7 +206,7 @@ async function sbDelete(table, id) {
 
 // STATE
 let state = {
-  tournaments: [], teams: [], matches: [],
+  tournaments: [], teams: [], matches: [], byes: [],
   selectedTournament: null, mainTab: 'resultados', adminTab: 'torneos'
 };
 
@@ -223,7 +223,7 @@ function showToast(msg, type) {
 async function loadData() {
   try {
     var results = await Promise.all([
-      sbGet('tournaments'), sbGet('teams'), sbGet('matches')
+      sbGet('tournaments'), sbGet('teams'), sbGet('matches'), sbGet('team_byes')
     ]);
     state.tournaments = results[0];
     state.teams = results[1].map(function(t) {
@@ -237,6 +237,7 @@ async function loadData() {
         homeTries: m.home_tries, awayTries: m.away_tries
       });
     });
+    state.byes = results[3] || [];
     state.selectedTournament = state.tournaments.length ? state.tournaments[0].id : null;
     renderSidebar();
     renderMain();
@@ -251,8 +252,11 @@ function getTeam(id) { return state.teams.find(function(t){ return t.id === id; 
 function getTournamentTeams(tid) { return state.teams.filter(function(t){ return t.tournamentId === tid; }); }
 function getTournamentMatches(tid) { return state.matches.filter(function(m){ return m.tournamentId === tid; }); }
 
-function calcStandings(tid) {
+function calcStandings(tid, zone) {
   var teams = getTournamentTeams(tid);
+  if (zone !== undefined) {
+    teams = teams.filter(function(t){ return t.zone === zone; });
+  }
   var matches = getTournamentMatches(tid).filter(function(m){ return m.status === 'final'; });
   var table = {};
   teams.forEach(function(t) {
@@ -343,9 +347,12 @@ function renderMain() {
     var matches = getTournamentMatches(tid);
     var rounds = [];
     matches.forEach(function(m){ if (rounds.indexOf(m.round) < 0) rounds.push(m.round); });
+    var tournamentByes = state.byes.filter(function(b){ return b.tournament_id === tid; });
+    rounds.forEach(function(round){ if (tournamentByes.some(function(b){ return b.round === round; }) && rounds.indexOf(round) < 0) rounds.push(round); });
     var html = '';
     rounds.forEach(function(round) {
       var rMatches = matches.filter(function(m){ return m.round === round; });
+      var rByes = tournamentByes.filter(function(b){ return b.round === round; });
       html += '<div class="section-label">' + round + '</div>';
       rMatches.forEach(function(m) {
         var home = getTeam(m.homeId), away = getTeam(m.awayId);
@@ -377,25 +384,53 @@ function renderMain() {
           '</div>' +
         '</div>';
       });
+      rByes.forEach(function(bye) {
+        var team = getTeam(bye.team_id);
+        if (!team) return;
+        html += '<div class="match-card" style="opacity:0.6;border-style:dashed"><div class="team-side home"><div class="team-badge" style="background:' + team.color + '22;color:' + team.color + '">' + team.short + '</div><div><div class="team-name">' + team.name + '</div></div></div><div class="score-center"><div style="color:var(--muted);font-size:14px;font-weight:600">Fecha Libre</div></div></div>';
+      });
     });
     if (!html) html = '<div class="empty-state">No hay partidos en este torneo todavia.</div>';
     main.innerHTML = html;
   } else {
-    var standings = calcStandings(tid);
-    if (!standings.length) {
-      main.innerHTML = '<div class="empty-state">Sin equipos en este torneo.</div>';
-      return;
+    var tournament = state.tournaments.find(function(t){ return t.id === tid; });
+    var hasZones = tournament && tournament.has_zones;
+    var html = '';
+    
+    if (hasZones) {
+      var zoneCount = tournament.zone_count || 2;
+      for (var z = 1; z <= zoneCount; z++) {
+        var standings = calcStandings(tid, z);
+        if (standings.length) {
+          html += '<div style="margin-bottom:24px"><div class="section-label">Zona ' + z + '</div>';
+          var rows = standings.map(function(row, i) {
+            return '<tr class="' + (i < 4 ? 'top-4' : '') + '">' +
+              '<td>' + (i+1) + '</td>' +
+              '<td><span class="team-row-badge" style="background:' + row.team.color + '22;color:' + row.team.color + '">' + row.team.short + '</span>' + row.team.name + '</td>' +
+              '<td>' + row.pj + '</td><td>' + row.pg + '</td><td>' + row.pe + '</td><td>' + row.pp + '</td>' +
+              '<td>' + row.pf + '</td><td>' + row.pc + '</td>' +
+              '<td class="pts-cell">' + row.pts + '</td></tr>';
+          }).join('');
+          html += '<table class="standings-table"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>PF</th><th>PC</th><th>PTS</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+        }
+      }
+    } else {
+      var standings = calcStandings(tid);
+      if (!standings.length) {
+        main.innerHTML = '<div class="empty-state">Sin equipos en este torneo.</div>';
+        return;
+      }
+      var rows = standings.map(function(row, i) {
+        return '<tr class="' + (i < 4 ? 'top-4' : '') + '">' +
+          '<td>' + (i+1) + '</td>' +
+          '<td><span class="team-row-badge" style="background:' + row.team.color + '22;color:' + row.team.color + '">' + row.team.short + '</span>' + row.team.name + '</td>' +
+          '<td>' + row.pj + '</td><td>' + row.pg + '</td><td>' + row.pe + '</td><td>' + row.pp + '</td>' +
+          '<td>' + row.pf + '</td><td>' + row.pc + '</td>' +
+          '<td class="pts-cell">' + row.pts + '</td></tr>';
+      }).join('');
+      html = '<table class="standings-table"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>PF</th><th>PC</th><th>PTS</th></tr></thead><tbody>' + rows + '</tbody></table>';
     }
-    var rows = standings.map(function(row, i) {
-      return '<tr class="' + (i < 4 ? 'top-4' : '') + '">' +
-        '<td>' + (i+1) + '</td>' +
-        '<td><span class="team-row-badge" style="background:' + row.team.color + '22;color:' + row.team.color + '">' + row.team.short + '</span>' + row.team.name + '</td>' +
-        '<td>' + row.pj + '</td><td>' + row.pg + '</td><td>' + row.pe + '</td><td>' + row.pp + '</td>' +
-        '<td>' + row.pf + '</td><td>' + row.pc + '</td>' +
-        '<td class="pts-cell">' + row.pts + '</td></tr>';
-    }).join('');
-    main.innerHTML = '<table class="standings-table"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>PF</th><th>PC</th><th>PTS</th></tr></thead><tbody>' + rows + '</tbody></table>' +
-      '<div style="margin-top:14px;font-size:11px;color:var(--muted)">PG=ganados · PE=empatados · PP=perdidos · PF/PC=pts favor/contra · PTS incluye bonus</div>';
+    main.innerHTML = html + '<div style="margin-top:14px;font-size:11px;color:var(--muted)">PG=ganados · PE=empatados · PP=perdidos · PF/PC=pts favor/contra · PTS incluye bonus</div>';
   }
 }
 
@@ -459,6 +494,13 @@ function renderAdmin() {
         '<div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5">+1 pt si 4+ trys &nbsp;|&nbsp; +1 pt al perdedor si diferencia &lt; 7 pts</div>' +
       '</div>' +
       '<button class="btn-primary" id="btnAddMatch" onclick="addMatch()">+ Agregar partido</button>' +
+      '<div class="divider"></div>' +
+      '<div class="subsection-title">Registrar Fecha Libre</div>' +
+      '<div class="form-group"><label>Torneo</label><select id="byeTournament" onchange="onByeTournamentChange()">' + tournOpts2 + '</select></div>' +
+      '<div class="form-group"><label>Equipo</label><select id="byeTeam"></select></div>' +
+      '<div class="form-group"><label>Fecha</label><select id="byeRound" onchange="onByeRoundChange()">' + buildRoundOptions(state.tournaments.length ? state.tournaments[0].id : 0) + '</select></div>' +
+      '<div class="form-group"><label>Fecha del partido</label><input id="byeDate" type="date" value="' + new Date().toISOString().split('T')[0] + '"></div>' +
+      '<button class="btn-primary" id="btnAddBye" onclick="addBye()">+ Registrar Fecha Libre</button>' +
       '<div class="divider"></div><div class="subsection-title">Partidos de la fecha seleccionada</div><div id="adminMatchList"></div>';
 
     document.getElementById('newMatchStatus').addEventListener('change', function() {
@@ -557,6 +599,41 @@ function renderAdminMatchList(round, tid) {
     var scoreStr = m.status !== 'upcoming' ? m.homeScore + ' - ' + m.awayScore + ' (' + (m.homeTries||0) + '/' + (m.awayTries||0) + ' trys)' : 'vs';
     return '<div class="admin-list-item"><div class="item-left" style="flex-direction:column;align-items:flex-start;gap:2px"><div style="font-weight:600;font-size:13px">' + h.name + ' ' + scoreStr + ' ' + a.name + '</div><div style="font-size:11px;color:var(--muted)">' + m.round + ' · ' + m.date + '<span class="badge-pill ' + pillClass + '">' + pillText + '</span></div></div><div style="display:flex;gap:6px"><button class="edit-btn" onclick="openEditMatch(' + m.id + ')">&#9998;</button><button class="del-btn" onclick="deleteMatch(' + m.id + ')">&#x2715;</button></div></div>';
   }).join('');
+}
+
+function onByeTournamentChange() {
+  var tid = parseInt(document.getElementById('byeTournament').value);
+  document.getElementById('byeRound').innerHTML = buildRoundOptions(tid);
+  document.getElementById('byeTeam').innerHTML = buildTournamentTeamOptions(tid);
+  onByeRoundChange();
+}
+
+function onByeRoundChange() {
+  var round = document.getElementById('byeRound').value;
+  var tid = document.getElementById('byeTournament').value;
+  if (!round || !tid) return;
+  var existing = state.matches.find(function(m){ return m.tournamentId === parseInt(tid) && m.round === round && m.date; });
+  if (existing) {
+    document.getElementById('byeDate').value = existing.date;
+  } else {
+    document.getElementById('byeDate').value = new Date().toISOString().split('T')[0];
+  }
+}
+
+async function addBye() {
+  var team_id = parseInt(document.getElementById('byeTeam').value);
+  var tournament_id = parseInt(document.getElementById('byeTournament').value);
+  var round = document.getElementById('byeRound').value;
+  var date = document.getElementById('byeDate').value;
+  if (!team_id || !tournament_id || !round) return showToast('Completa todos los campos', 'error');
+  var btn = document.getElementById('btnAddBye');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    var res = await sbInsert('team_byes', { team_id: team_id, tournament_id: tournament_id, round: round, date: date });
+    state.byes.push(res[0]);
+    showToast('Fecha libre registrada');
+    renderAdmin();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); btn.disabled=false; btn.textContent='+ Registrar Fecha Libre'; }
 }
 
 // CRUD

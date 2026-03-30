@@ -119,8 +119,10 @@ function getTeam(id){return state.teams.find(t=>t.id===id);}
 function getTournamentTeams(tid){return state.teams.filter(t=>t.tournamentId===tid);}
 function getTournamentMatches(tid){return state.matches.filter(m=>m.tournamentId===tid);}
 
-function calcStandings(tid) {
-  var teams=getTournamentTeams(tid), matches=getTournamentMatches(tid).filter(m=>m.status==='final'), table={};
+function calcStandings(tid, zone) {
+  var teams=getTournamentTeams(tid);
+  if(zone!==undefined){teams=teams.filter(t=>t.zone===zone);}
+  var matches=getTournamentMatches(tid).filter(m=>m.status==='final'), table={};
   teams.forEach(t=>{table[t.id]={team:t,pj:0,pg:0,pe:0,pp:0,pf:0,pc:0,pts:0};});
   matches.forEach(m=>{
     var h=table[m.homeId],a=table[m.awayId]; if(!h||!a)return;
@@ -165,10 +167,26 @@ function renderMain() {
     if(!html)html='<div class="empty-state">No hay partidos en este torneo todavia.</div>';
     main.innerHTML=html;
   } else {
-    var standings=calcStandings(tid);
-    if(!standings.length){main.innerHTML='<div class="empty-state">Sin equipos en este torneo.</div>';return;}
-    var rows=standings.map((row,i)=>'<tr class="'+(i<4?'top-4':'')+'"><td>'+(i+1)+'</td><td><span class="team-row-badge" style="background:'+row.team.color+'22;color:'+row.team.color+'">'+row.team.short+'</span>'+row.team.name+'</td><td>'+row.pj+'</td><td>'+row.pg+'</td><td>'+row.pe+'</td><td>'+row.pp+'</td><td>'+row.pf+'</td><td>'+row.pc+'</td><td class="pts-cell">'+row.pts+'</td></tr>').join('');
-    main.innerHTML='<table class="standings-table"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>PF</th><th>PC</th><th>PTS</th></tr></thead><tbody>'+rows+'</tbody></table><div style="margin-top:14px;font-size:11px;color:var(--muted)">PG=ganados · PE=empatados · PP=perdidos · PF/PC=pts favor/contra · PTS incluye bonus</div>';
+    var tournament=getTournament(tid), html='';
+    if(tournament.has_zones){
+      for(var z=1;z<=tournament.zone_count;z++){
+        var standings=calcStandings(tid,z);
+        if(standings.length){
+          if(html)html+='<div style="margin-top:20px"></div>';
+          html+='<div class="section-label">Zona '+z+'</div>';
+          var rows=standings.map((row,i)=>'<tr class="'+(i<4?'top-4':'')+'"><td>'+(i+1)+'</td><td><span class="team-row-badge" style="background:'+row.team.color+'22;color:'+row.team.color+'">'+row.team.short+'</span>'+row.team.name+'</td><td>'+row.pj+'</td><td>'+row.pg+'</td><td>'+row.pe+'</td><td>'+row.pp+'</td><td>'+row.pf+'</td><td>'+row.pc+'</td><td class="pts-cell">'+row.pts+'</td></tr>').join('');
+          html+='<table class="standings-table"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>PF</th><th>PC</th><th>PTS</th></tr></thead><tbody>'+rows+'</tbody></table>';
+        }
+      }
+    } else {
+      var standings=calcStandings(tid);
+      if(standings.length){
+        var rows=standings.map((row,i)=>'<tr class="'+(i<4?'top-4':'')+'"><td>'+(i+1)+'</td><td><span class="team-row-badge" style="background:'+row.team.color+'22;color:'+row.team.color+'">'+row.team.short+'</span>'+row.team.name+'</td><td>'+row.pj+'</td><td>'+row.pg+'</td><td>'+row.pe+'</td><td>'+row.pp+'</td><td>'+row.pf+'</td><td>'+row.pc+'</td><td class="pts-cell">'+row.pts+'</td></tr>').join('');
+        html='<table class="standings-table"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PE</th><th>PP</th><th>PF</th><th>PC</th><th>PTS</th></tr></thead><tbody>'+rows+'</tbody></table>';
+      }
+    }
+    if(!html)html='<div class="empty-state">Sin equipos en este torneo.</div>';
+    main.innerHTML=html+'<div style="margin-top:14px;font-size:11px;color:var(--muted)">PG=ganados · PE=empatados · PP=perdidos · PF/PC=pts favor/contra · PTS incluye bonus</div>';
   }
 }
 

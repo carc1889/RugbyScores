@@ -420,7 +420,7 @@ function renderAdmin() {
     var tournOpts = state.tournaments.map(function(t){ return '<option value="' + t.id + '">' + t.name + '</option>'; }).join('');
     var teamList = state.teams.map(function(t) {
       var tourn = state.tournaments.find(function(x){ return x.id === t.tournamentId; });
-      return '<div class="admin-list-item"><div class="item-left"><div class="item-badge" style="background:' + t.color + '22;color:' + t.color + '">' + t.short + '</div><div><div style="font-weight:600">' + t.name + '</div><div style="font-size:11px;color:var(--muted)">' + (tourn ? tourn.name : '-') + (t.zone ? ' · Zona '+t.zone : '') + '</div></div></div><button class="del-btn" onclick="deleteTeam(' + t.id + ')">&#x2715;</button></div>';
+      return '<div class="admin-list-item"><div class="item-left"><div class="item-badge" style="background:' + t.color + '22;color:' + t.color + '">' + t.short + '</div><div><div style="font-weight:600">' + t.name + '</div><div style="font-size:11px;color:var(--muted)">' + (tourn ? tourn.name : '-') + (t.zone ? ' · Zona '+t.zone : '') + '</div></div></div><div style="display:flex;gap:6px"><button class="edit-btn" onclick="openEditTeam(' + t.id + ')">&#9998;</button><button class="del-btn" onclick="deleteTeam(' + t.id + ')">&#x2715;</button></div></div>';
     }).join('') || '<div class="empty-state">Sin equipos</div>';
     el.innerHTML = '<div class="subsection-title">Nuevo equipo</div>' +
       '<div class="form-group"><label>Torneo</label><select id="newTeamTournament" onchange="onTeamTournamentChange()">' + tournOpts + '</select></div>' +
@@ -625,6 +625,44 @@ async function deleteTeam(id) {
     showToast('Equipo eliminado');
     renderAdmin(); renderMain();
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+function openEditTeam(id) {
+  var t = state.teams.find(function(x){ return x.id === id; });
+  if (!t) return;
+  var tourn = state.tournaments.find(function(x){ return x.id === t.tournamentId; });
+  document.getElementById('editModalContent').innerHTML =
+    '<input type="hidden" id="editTeamId" value="' + t.id + '">' +
+    '<div class="form-group"><label>Torneo</label><input type="text" value="' + (tourn ? tourn.name : '?') + '" disabled></div>' +
+    '<div class="form-group"><label>Nombre del equipo</label><input id="editTeamName" type="text" value="' + t.name + '"></div>' +
+    '<div class="form-row"><div class="form-group"><label>Abreviatura (hasta 6 letras)</label><input id="editTeamShort" type="text" maxlength="6" value="' + t.short + '"></div>' +
+    '<div class="form-group"><label>Color</label><input id="editTeamColor" type="color" value="' + t.color + '" style="height:42px;padding:4px"></div></div>' +
+    '<button class="btn-primary" id="btnEditTeam" onclick="saveEditTeam()">Guardar cambios</button>';
+  document.getElementById('editModal').classList.add('open');
+}
+
+async function saveEditTeam() {
+  var id = parseInt(document.getElementById('editTeamId').value);
+  var name = document.getElementById('editTeamName').value.trim();
+  var short = document.getElementById('editTeamShort').value.trim().toUpperCase();
+  var color = document.getElementById('editTeamColor').value;
+  if (!name || !short) return showToast('Completa nombre y abreviatura', 'error');
+  var btn = document.getElementById('btnEditTeam');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    var res = await fetch(SB_URL + '/rest/v1/teams?id=eq.' + id, {
+      method: 'PATCH',
+      headers: SB_HEADERS,
+      body: JSON.stringify({ name: name, short: short, color: color })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    var idx = state.teams.findIndex(function(t){ return t.id === id; });
+    if (idx >= 0) Object.assign(state.teams[idx], { name: name, short: short, color: color });
+    showToast('Equipo actualizado');
+    closeEditModal();
+    renderAdmin();
+    renderMain();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); btn.disabled=false; btn.textContent='Guardar cambios'; }
 }
 
 async function addMatch() {

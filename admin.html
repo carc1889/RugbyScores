@@ -388,7 +388,7 @@ function renderEquipos(main) {
     return '<div class="list-item">'+
       '<div class="list-item-left"><div class="item-badge" style="background:'+t.color+'22;color:'+t.color+'">'+t.short+'</div>'+
       '<div><div style="font-weight:600">'+t.name+'</div><div style="font-size:11px;color:var(--muted)">'+(tourn?tourn.name:'—')+(t.zone ? ' · Zona '+t.zone : '')+'</div></div></div>'+
-      '<button class="del-btn" onclick="deleteTeam('+t.id+')">&#x2715;</button></div>';
+      '<div class="btn-group"><button class="edit-btn" onclick="openEditTeam('+t.id+')">&#9998;</button><button class="del-btn" onclick="deleteTeam('+t.id+')">&#x2715;</button></div></div>';
   }).join('') || '<div class="empty-state">Sin equipos</div>';
 
   main.innerHTML =
@@ -429,6 +429,30 @@ async function deleteTeam(id) {
   if(!confirm('Eliminar equipo?')) return;
   try { await sbDelete('teams',id); state.teams=state.teams.filter(t=>t.id!==id); showToast('Eliminado'); navigate('equipos'); }
   catch(e){showToast('Error: '+e.message,'error');}
+}
+
+function openEditTeam(id) {
+  var t = state.teams.find(x=>x.id===id); if(!t) return;
+  var tourn = state.tournaments.find(x=>x.id===t.tournamentId);
+  openModal('Editar equipo',
+    '<input type="hidden" id="etTeamId" value="'+t.id+'">'+
+    '<div class="form-group"><label>Torneo</label><input type="text" value="'+(tourn?tourn.name:'?')+'" disabled></div>'+
+    '<div class="form-group"><label>Nombre</label><input id="etTeamName" type="text" value="'+t.name+'"></div>'+
+    '<div class="form-row"><div class="form-group"><label>Abreviatura (hasta 6)</label><input id="etTeamShort" type="text" maxlength="6" value="'+t.short+'"></div>'+
+    '<div class="form-group"><label>Color</label><input id="etTeamColor" type="color" value="'+t.color+'" style="height:42px;padding:4px"></div></div>'+
+    '<button class="btn-primary" id="btnSaveET" onclick="saveEditTeam()">Guardar cambios</button>'
+  );
+}
+
+async function saveEditTeam() {
+  var id=parseInt(document.getElementById('etTeamId').value), name=document.getElementById('etTeamName').value.trim(), short=document.getElementById('etTeamShort').value.trim().toUpperCase(), color=document.getElementById('etTeamColor').value;
+  if(!name||!short) return showToast('Completa nombre y abreviatura','error');
+  var btn=document.getElementById('btnSaveET'); btn.disabled=true; btn.textContent='Guardando...';
+  try {
+    await sbPatch('teams',id,{name,short,color});
+    var idx=state.teams.findIndex(t=>t.id===id); if(idx>=0)Object.assign(state.teams[idx],{name,short,color});
+    showToast('Equipo actualizado'); closeModal(); navigate('equipos');
+  } catch(e){showToast('Error: '+e.message,'error');btn.disabled=false;btn.textContent='Guardar cambios';}
 }
 
 // ─── PARTIDOS ────────────────────────────────────────────────

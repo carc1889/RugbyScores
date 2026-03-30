@@ -280,6 +280,41 @@ function calcStandings(tid) {
   });
 }
 
+function onNewTournamentZonesToggle() {
+  var hasZones = document.querySelector('input[name="newTournHasZones"]:checked').value === 'yes';
+  var container = document.getElementById('newTournZoneCountContainer');
+  if (container) {
+    container.style.display = hasZones ? 'block' : 'none';
+  }
+}
+
+function onEditTournamentZonesToggle() {
+  var hasZones = document.querySelector('input[name="editTournHasZones"]:checked').value === 'yes';
+  var container = document.getElementById('editTournZoneCountContainer');
+  if (container) {
+    container.style.display = hasZones ? 'block' : 'none';
+  }
+}
+
+function onTeamTournamentChange() {
+  var tid = parseInt(document.getElementById('newTeamTournament').value);
+  var tournament = state.tournaments.find(function(t){ return t.id === tid; });
+  var container = document.getElementById('newTeamZoneContainer');
+  var zoneSelect = document.getElementById('newTeamZone');
+  if (!tournament || !container || !zoneSelect) return;
+  if (tournament.has_zones) {
+    container.style.display = 'block';
+    var count = tournament.zone_count || 2;
+    zoneSelect.innerHTML = '';
+    for (var i = 1; i <= count; i++) {
+      zoneSelect.innerHTML += '<option value="' + i + '">Zona ' + i + '</option>';
+    }
+  } else {
+    container.style.display = 'none';
+    zoneSelect.innerHTML = '';
+  }
+}
+
 // SIDEBAR
 function renderSidebar() {
   var el = document.getElementById('tournamentList');
@@ -370,12 +405,14 @@ function renderAdmin() {
   var tab = state.adminTab;
   if (tab === 'torneos') {
     var list = state.tournaments.map(function(t) {
-      return '<div class="admin-list-item"><div class="item-left"><div style="font-weight:600">' + t.name + '</div><span style="color:var(--muted);font-size:12px;margin-left:8px">' + t.season + ' &nbsp;·&nbsp; ' + (t.rounds||'?') + ' fechas</span></div><div style="display:flex;gap:6px"><button class="edit-btn" onclick="openEditTournament(' + t.id + ')">&#9998;</button><button class="del-btn" onclick="deleteTournament(' + t.id + ')">&#x2715;</button></div></div>';
+      return '<div class="admin-list-item"><div class="item-left"><div style="font-weight:600">' + t.name + '</div><span style="color:var(--muted);font-size:12px;margin-left:8px">' + t.season + ' &nbsp;·&nbsp; ' + (t.rounds||'?') + ' fechas' + (t.has_zones ? ' · Zonas: '+t.zone_count : '') + '</span></div><div style="display:flex;gap:6px"><button class="edit-btn" onclick="openEditTournament(' + t.id + ')">&#9998;</button><button class="del-btn" onclick="deleteTournament(' + t.id + ')">&#x2715;</button></div></div>';
     }).join('') || '<div class="empty-state">Sin torneos</div>';
     el.innerHTML = '<div class="subsection-title">Nuevo torneo</div>' +
       '<div class="form-group"><label>Nombre del torneo</label><input id="newTournName" type="text" placeholder="ej: Copa del Centro 2025"></div>' +
       '<div class="form-row"><div class="form-group"><label>Temporada</label><input id="newTournSeason" type="text" placeholder="ej: 2025"></div>' +
       '<div class="form-group"><label>Cantidad de fechas</label><input id="newTournRounds" type="number" min="1" max="50" value="10"></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>¿Tiene zonas?</label><div style="display:flex;gap:10px;margin-top:6px"><label><input type="radio" name="newTournHasZones" value="no" checked onchange="onNewTournamentZonesToggle()"> No</label><label><input type="radio" name="newTournHasZones" value="yes" onchange="onNewTournamentZonesToggle()"> Sí</label></div></div>' +
+      '<div class="form-group" id="newTournZoneCountContainer" style="display:none;"><label>Cantidad de zonas</label><input id="newTournZoneCount" type="number" min="2" max="10" value="2"></div></div>' +
       '<button class="btn-primary" id="btnAddTournament" onclick="addTournament()">+ Agregar torneo</button>' +
       '<div class="divider"></div><div class="subsection-title">Torneos existentes</div>' + list;
 
@@ -383,22 +420,23 @@ function renderAdmin() {
     var tournOpts = state.tournaments.map(function(t){ return '<option value="' + t.id + '">' + t.name + '</option>'; }).join('');
     var teamList = state.teams.map(function(t) {
       var tourn = state.tournaments.find(function(x){ return x.id === t.tournamentId; });
-      return '<div class="admin-list-item"><div class="item-left"><div class="item-badge" style="background:' + t.color + '22;color:' + t.color + '">' + t.short + '</div><div><div style="font-weight:600">' + t.name + '</div><div style="font-size:11px;color:var(--muted)">' + (tourn ? tourn.name : '-') + '</div></div></div><button class="del-btn" onclick="deleteTeam(' + t.id + ')">&#x2715;</button></div>';
+      return '<div class="admin-list-item"><div class="item-left"><div class="item-badge" style="background:' + t.color + '22;color:' + t.color + '">' + t.short + '</div><div><div style="font-weight:600">' + t.name + '</div><div style="font-size:11px;color:var(--muted)">' + (tourn ? tourn.name : '-') + (t.zone ? ' · Zona '+t.zone : '') + '</div></div></div><button class="del-btn" onclick="deleteTeam(' + t.id + ')">&#x2715;</button></div>';
     }).join('') || '<div class="empty-state">Sin equipos</div>';
     el.innerHTML = '<div class="subsection-title">Nuevo equipo</div>' +
-      '<div class="form-group"><label>Torneo</label><select id="newTeamTournament">' + tournOpts + '</select></div>' +
+      '<div class="form-group"><label>Torneo</label><select id="newTeamTournament" onchange="onTeamTournamentChange()">' + tournOpts + '</select></div>' +
+      '<div class="form-group" id="newTeamZoneContainer" style="display:none;"><label>Zona</label><select id="newTeamZone"></select></div>' +
       '<div class="form-group"><label>Nombre del equipo</label><input id="newTeamName" type="text" placeholder="ej: Jockey Club RC"></div>' +
       '<div class="form-row"><div class="form-group"><label>Abreviatura (3-4 letras)</label><input id="newTeamShort" type="text" maxlength="4" placeholder="ej: JCR"></div>' +
       '<div class="form-group"><label>Color</label><input id="newTeamColor" type="color" value="#4a90d9" style="height:42px;padding:4px"></div></div>' +
       '<button class="btn-primary" id="btnAddTeam" onclick="addTeam()">+ Agregar equipo</button>' +
       '<div class="divider"></div><div class="subsection-title">Equipos existentes</div>' + teamList;
+    onTeamTournamentChange();
 
   } else {
-    var teamsOpts = state.teams.map(function(t) {
-      var tourn = state.tournaments.find(function(x){ return x.id === t.tournamentId; });
-      return '<option value="' + t.id + '">' + t.name + ' (' + (tourn ? tourn.name : '?') + ')</option>';
-    }).join('');
     var tournOpts2 = state.tournaments.map(function(t){ return '<option value="' + t.id + '">' + t.name + '</option>'; }).join('');
+    var initialTournamentId = state.tournaments.length ? state.tournaments[0].id : 0;
+    var teamsOpts = buildTournamentTeamOptions(initialTournamentId);
+
     var matchList = state.matches.map(function(m) {
       var h = getTeam(m.homeId), a = getTeam(m.awayId);
       if (!h || !a) return '';
@@ -471,9 +509,22 @@ function buildRoundOptions(tournamentId) {
 }
 
 // When tournament changes in match form, rebuild round options
+function buildTournamentTeamOptions(tournamentId) {
+  var teams = state.teams.filter(function(t){ return t.tournamentId === tournamentId; });
+  if (!teams.length) return '<option value="0">Sin equipos</option>';
+  return teams.map(function(t){ return '<option value="' + t.id + '">' + t.name + ' (' + t.short + (t.zone ? ' · Zona '+t.zone : '') + ')</option>'; }).join('');
+}
+
 function onMatchTournamentChange() {
   var tid = parseInt(document.getElementById('newMatchTournament').value);
   document.getElementById('newMatchRound').innerHTML = buildRoundOptions(tid);
+  var teamOptions = buildTournamentTeamOptions(tid);
+  var homeSelect = document.getElementById('newMatchHome');
+  var awaySelect = document.getElementById('newMatchAway');
+  if (homeSelect && awaySelect) {
+    homeSelect.innerHTML = teamOptions;
+    awaySelect.innerHTML = teamOptions;
+  }
   onRoundChange();
 }
 
@@ -513,11 +564,14 @@ async function addTournament() {
   var name = document.getElementById('newTournName').value.trim();
   var season = document.getElementById('newTournSeason').value.trim() || '2025';
   var rounds = parseInt(document.getElementById('newTournRounds').value) || 10;
+  var hasZones = document.querySelector('input[name="newTournHasZones"]:checked').value === 'yes';
+  var zoneCount = hasZones ? (parseInt(document.getElementById('newTournZoneCount').value) || 2) : 0;
   if (!name) return showToast('Ingresa el nombre del torneo', 'error');
+  if (hasZones && zoneCount < 2) return showToast('Ingresa cantidad de zonas (mínimo 2)', 'error');
   var btn = document.getElementById('btnAddTournament');
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
-    var res = await sbInsert('tournaments', { name: name, season: season, rounds: rounds, active: true });
+    var res = await sbInsert('tournaments', { name: name, season: season, rounds: rounds, has_zones: hasZones, zone_count: zoneCount, active: true });
     var inserted = res[0];
     state.tournaments.push(inserted);
     if (!state.selectedTournament) state.selectedTournament = inserted.id;
@@ -544,11 +598,18 @@ async function addTeam() {
   var short = document.getElementById('newTeamShort').value.trim().toUpperCase();
   var color = document.getElementById('newTeamColor').value;
   var tournament_id = parseInt(document.getElementById('newTeamTournament').value);
+  var tournament = state.tournaments.find(function(t){ return t.id === tournament_id; });
+  var zone = null;
+  if (tournament && tournament.has_zones) {
+    var zoneVal = parseInt(document.getElementById('newTeamZone').value);
+    zone = isNaN(zoneVal) ? null : zoneVal;
+  }
   if (!name || !short) return showToast('Completa nombre y abreviatura', 'error');
+  if (tournament && tournament.has_zones && !zone) return showToast('Selecciona zona', 'error');
   var btn = document.getElementById('btnAddTeam');
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
-    var res = await sbInsert('teams', { name: name, short: short, color: color, tournament_id: tournament_id });
+    var res = await sbInsert('teams', { name: name, short: short, color: color, tournament_id: tournament_id, zone: zone });
     var ins = res[0];
     state.teams.push(Object.assign({}, ins, { tournamentId: ins.tournament_id }));
     showToast('Equipo creado');
@@ -615,6 +676,8 @@ async function deleteMatch(id) {
 function openEditTournament(id) {
   var t = state.tournaments.find(function(x){ return x.id === id; });
   if (!t) return;
+  var hasZones = t.has_zones || false;
+  var zoneCount = t.zone_count || 0;
   document.getElementById('editModalContent').innerHTML =
     '<input type="hidden" id="editTournId" value="' + t.id + '">' +
     '<div class="form-group"><label>Nombre del torneo</label><input id="editTournName" type="text" value="' + t.name + '"></div>' +
@@ -622,6 +685,8 @@ function openEditTournament(id) {
       '<div class="form-group"><label>Temporada</label><input id="editTournSeason" type="text" value="' + t.season + '"></div>' +
       '<div class="form-group"><label>Cantidad de fechas</label><input id="editTournRounds" type="number" min="1" max="50" value="' + (t.rounds||10) + '"></div>' +
     '</div>' +
+    '<div class="form-row"><div class="form-group"><label>¿Tiene zonas?</label><div style="display:flex;gap:10px;margin-top:6px"><label><input type="radio" name="editTournHasZones" value="no"' + (!hasZones ? ' checked' : '') + ' onchange="onEditTournamentZonesToggle()"> No</label><label><input type="radio" name="editTournHasZones" value="yes"' + (hasZones ? ' checked' : '') + ' onchange="onEditTournamentZonesToggle()"> Sí</label></div></div>' +
+    '<div class="form-group" id="editTournZoneCountContainer" style="display:' + (hasZones ? 'block' : 'none') + ';"><label>Cantidad de zonas</label><input id="editTournZoneCount" type="number" min="2" max="10" value="' + (zoneCount || 2) + '"></div></div>' +
     '<button class="btn-primary" id="btnSaveEditTourn" onclick="saveEditTournament()">Guardar cambios</button>';
   document.getElementById('editModal').classList.add('open');
 }
@@ -631,18 +696,21 @@ async function saveEditTournament() {
   var name = document.getElementById('editTournName').value.trim();
   var season = document.getElementById('editTournSeason').value.trim();
   var rounds = parseInt(document.getElementById('editTournRounds').value) || 10;
+  var hasZones = document.querySelector('input[name="editTournHasZones"]:checked').value === 'yes';
+  var zoneCount = hasZones ? (parseInt(document.getElementById('editTournZoneCount').value) || 2) : 0;
   if (!name) return showToast('Ingresa el nombre del torneo', 'error');
+  if (hasZones && zoneCount < 2) return showToast('Ingresa cantidad de zonas (mínimo 2)', 'error');
   var btn = document.getElementById('btnSaveEditTourn');
   btn.disabled = true; btn.textContent = 'Guardando...';
   try {
     var res = await fetch(SB_URL + '/rest/v1/tournaments?id=eq.' + id, {
       method: 'PATCH',
       headers: SB_HEADERS,
-      body: JSON.stringify({ name: name, season: season, rounds: rounds })
+      body: JSON.stringify({ name: name, season: season, rounds: rounds, has_zones: hasZones, zone_count: zoneCount })
     });
     if (!res.ok) throw new Error(await res.text());
     var idx = state.tournaments.findIndex(function(t){ return t.id === id; });
-    if (idx >= 0) Object.assign(state.tournaments[idx], { name: name, season: season, rounds: rounds });
+    if (idx >= 0) Object.assign(state.tournaments[idx], { name: name, season: season, rounds: rounds, has_zones: hasZones, zone_count: zoneCount });
     showToast('Torneo actualizado');
     closeEditModal();
     renderSidebar();

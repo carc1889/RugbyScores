@@ -167,8 +167,8 @@ function renderMain() {
     if(!html)html='<div class="empty-state">No hay partidos en este torneo todavia.</div>';
     main.innerHTML=html;
   } else {
-    var tournament=getTournament(tid), html='';
-    if(tournament.has_zones){
+    var tournament=state.tournaments.find(t=>t.id===tid), html='';
+    if(tournament && tournament.has_zones){
       for(var z=1;z<=tournament.zone_count;z++){
         var standings=calcStandings(tid,z);
         if(standings.length){

@@ -120,6 +120,8 @@ function getTournamentTeams(tid){return state.teams.filter(t=>t.tournamentId===t
 function getTournamentMatches(tid){return state.matches.filter(m=>m.tournamentId===tid);}
 
 function calcStandings(tid, zone) {
+  var tournament=state.tournaments.find(t=>t.id===tid);
+  var isJuveniles=(tournament && tournament.category==='juveniles');
   var teams=getTournamentTeams(tid);
   if(zone!==undefined){teams=teams.filter(t=>t.zone===zone);}
   var matches=getTournamentMatches(tid).filter(m=>m.status==='final'), table={};
@@ -128,12 +130,26 @@ function calcStandings(tid, zone) {
     var h=table[m.homeId],a=table[m.awayId]; if(!h||!a)return;
     h.pj++;a.pj++;h.pf+=m.homeScore;h.pc+=m.awayScore;a.pf+=m.awayScore;a.pc+=m.homeScore;
     var diff=Math.abs(m.homeScore-m.awayScore);
-    if(m.homeScore>m.awayScore){h.pg++;h.pts+=4;a.pp++;}
-    else if(m.homeScore<m.awayScore){a.pg++;a.pts+=4;h.pp++;}
-    else{h.pe++;h.pts+=2;a.pe++;a.pts+=2;}
-    if((m.homeTries||0)>=4)h.pts++;
-    if((m.awayTries||0)>=4)a.pts++;
-    if(diff<=7){if(m.homeScore<m.awayScore)h.pts++;if(m.awayScore<m.homeScore)a.pts++;}
+    if(isJuveniles){
+      // Juveniles: 3 pts por ganar, 1 try bonus, 1 tarjeta bonus si <3 amarillas
+      if(m.homeScore>m.awayScore){h.pg++;h.pts+=3;a.pp++;}
+      else if(m.homeScore<m.awayScore){a.pg++;a.pts+=3;h.pp++;}
+      else{h.pe++;h.pts+=2;a.pe++;a.pts+=2;}
+      // Try bonus: 1 pt si 4+ tries
+      if((m.homeTries||0)>=4)h.pts++;
+      if((m.awayTries||0)>=4)a.pts++;
+      // Tarjeta bonus: 1 pt si <3 amarillas Y sin rojas
+      if((m.homeYellow||0)<3 && (m.homeRed||0)===0)h.pts++;
+      if((m.awayYellow||0)<3 && (m.awayRed||0)===0)a.pts++;
+    } else {
+      // Mayores: 4 pts por ganar, 1 try bonus, 1 diferencia bonus
+      if(m.homeScore>m.awayScore){h.pg++;h.pts+=4;a.pp++;}
+      else if(m.homeScore<m.awayScore){a.pg++;a.pts+=4;h.pp++;}
+      else{h.pe++;h.pts+=2;a.pe++;a.pts+=2;}
+      if((m.homeTries||0)>=4)h.pts++;
+      if((m.awayTries||0)>=4)a.pts++;
+      if(diff<=7){if(m.homeScore<m.awayScore)h.pts++;if(m.awayScore<m.homeScore)a.pts++;}
+    }
   });
   return Object.values(table).sort((a,b)=>(b.pts-a.pts)||((b.pf-b.pc)-(a.pf-a.pc)));
 }

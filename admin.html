@@ -253,7 +253,7 @@ async function startApp() {
   var r = await Promise.all([sbGet('tournaments'),sbGet('teams'),sbGet('matches'),sbGet('team_byes')]);
   state.tournaments = r[0];
   state.teams = r[1].map(t=>Object.assign({},t,{tournamentId:t.tournament_id}));
-  state.matches = r[2].map(m=>Object.assign({},m,{tournamentId:m.tournament_id,homeId:m.home_id,awayId:m.away_id,homeScore:m.home_score,awayScore:m.away_score,homeTries:m.home_tries,awayTries:m.away_tries}));
+  state.matches = r[2].map(m=>Object.assign({},m,{tournamentId:m.tournament_id,homeId:m.home_id,awayId:m.away_id,homeScore:m.home_score,awayScore:m.away_score,homeTries:m.home_tries,awayTries:m.away_tries,homeYellow:m.home_yellow,homeRed:m.home_red,awayYellow:m.away_yellow,awayRed:m.away_red}));
   state.byes = r[3]||[];
   if(currentUser.role==='superadmin') {
     var u = await sbGet('admin_users').catch(()=>[]);
@@ -325,6 +325,7 @@ function renderTorneos(main) {
         '<div class="form-group"><label>Temporada</label><input id="tSeason" type="text" placeholder="2025"></div>'+
         '<div class="form-group"><label>Cantidad de fechas</label><input id="tRounds" type="number" min="1" max="50" value="10"></div>'+
       '</div>'+ 
+      '<div class="form-group"><label>Categoría</label><select id="tCategory"><option value="mayores">Mayores</option><option value="juveniles">Juveniles</option></select></div>'+
       '<div class="form-row"><div class="form-group"><label>¿Tiene zonas?</label><div style="display:flex;gap:10px;margin-top:6px"><label><input type="radio" name="tHasZones" value="no" checked onchange="onTournamentZonesToggle()"> No</label><label><input type="radio" name="tHasZones" value="yes" onchange="onTournamentZonesToggle()"> Sí</label></div></div>'+
       '<div class="form-group" id="tZoneCountContainer" style="display:none;"><label>Cantidad de zonas</label><input id="tZoneCount" type="number" min="2" max="10" value="2"></div></div>'+
       '<button class="btn-primary" id="btnAddT" onclick="addTournament()">+ Agregar torneo</button>'+
@@ -334,13 +335,14 @@ function renderTorneos(main) {
 
 async function addTournament() {
   var name=document.getElementById('tName').value.trim(), season=document.getElementById('tSeason').value.trim()||'2025', rounds=parseInt(document.getElementById('tRounds').value)||10;
+  var category=document.getElementById('tCategory').value||'mayores';
   var hasZones = document.querySelector('input[name="tHasZones"]:checked').value === 'yes';
   var zoneCount = hasZones ? (parseInt(document.getElementById('tZoneCount').value) || 2) : 0;
   if(!name) return showToast('Ingresa el nombre','error');
   if(hasZones && zoneCount < 2) return showToast('Ingresa cantidad de zonas (mínimo 2)','error');
   var btn=document.getElementById('btnAddT'); btn.disabled=true;btn.textContent='Guardando...';
   try {
-    var res=await sbInsert('tournaments',{name,season,rounds,has_zones:hasZones,zone_count:zoneCount,active:true});
+    var res=await sbInsert('tournaments',{name,season,rounds,category,has_zones:hasZones,zone_count:zoneCount,active:true});
     state.tournaments.push(res[0]);
     showToast('Torneo creado'); navigate('torneos');
   } catch(e){showToast('Error: '+e.message,'error');btn.disabled=false;btn.textContent='+ Agregar torneo';}
@@ -356,11 +358,13 @@ function openEditTournament(id) {
   var t = state.tournaments.find(x=>x.id===id); if(!t) return;
   var hasZones = t.has_zones || false;
   var zoneCount = t.zone_count || 2;
+  var category = t.category || 'mayores';
   openModal('Editar torneo',
     '<input type="hidden" id="etId" value="'+t.id+'">'+
     '<div class="form-group"><label>Nombre</label><input id="etName" type="text" value="'+t.name+'"></div>'+ 
     '<div class="form-row"><div class="form-group"><label>Temporada</label><input id="etSeason" type="text" value="'+t.season+'"></div>'+ 
     '<div class="form-group"><label>Fechas</label><input id="etRounds" type="number" min="1" max="50" value="'+(t.rounds||10)+'"></div></div>'+ 
+    '<div class="form-group"><label>Categoría</label><select id="etCategory"><option value="mayores"'+(category==='mayores'?' selected':'')+'>Mayores</option><option value="juveniles"'+(category==='juveniles'?' selected':'')+'>Juveniles</option></select></div>'+
     '<div class="form-row"><div class="form-group"><label>¿Tiene zonas?</label><div style="display:flex;gap:10px;margin-top:6px"><label><input type="radio" name="etHasZones" value="no"'+(!hasZones?' checked':'')+' onchange="onTournamentZonesToggle()"> No</label><label><input type="radio" name="etHasZones" value="yes"'+(hasZones?' checked':'')+' onchange="onTournamentZonesToggle()"> Sí</label></div></div>'+ 
     '<div class="form-group" id="etZoneCountContainer" style="display:'+(hasZones?'block':'none')+';"><label>Cantidad de zonas</label><input id="etZoneCount" type="number" min="2" max="10" value="'+zoneCount+'"></div></div>'+ 
     '<button class="btn-primary" id="btnSaveT" onclick="saveEditTournament()">Guardar cambios</button>'
@@ -369,14 +373,15 @@ function openEditTournament(id) {
 
 async function saveEditTournament() {
   var id=parseInt(document.getElementById('etId').value), name=document.getElementById('etName').value.trim(), season=document.getElementById('etSeason').value.trim(), rounds=parseInt(document.getElementById('etRounds').value)||10;
+  var category=document.getElementById('etCategory').value||'mayores';
   var hasZones=document.querySelector('input[name="etHasZones"]:checked').value==='yes';
   var zoneCount = hasZones ? (parseInt(document.getElementById('etZoneCount').value) || 2) : 0;
   if(!name) return showToast('Ingresa el nombre','error');
   if(hasZones && zoneCount<2) return showToast('Ingresa cantidad de zonas (mínimo 2)','error');
   var btn=document.getElementById('btnSaveT'); btn.disabled=true; btn.textContent='Guardando...';
   try {
-    await sbPatch('tournaments',id,{name,season,rounds,has_zones:hasZones,zone_count:zoneCount});
-    var idx=state.tournaments.findIndex(t=>t.id===id); if(idx>=0)Object.assign(state.tournaments[idx],{name,season,rounds,has_zones:hasZones,zone_count:zoneCount});
+    await sbPatch('tournaments',id,{name,season,rounds,category,has_zones:hasZones,zone_count:zoneCount});
+    var idx=state.tournaments.findIndex(t=>t.id===id); if(idx>=0)Object.assign(state.tournaments[idx],{name,season,rounds,category,has_zones:hasZones,zone_count:zoneCount});
     showToast('Torneo actualizado'); closeModal(); navigate('torneos');
   } catch(e){showToast('Error: '+e.message,'error');btn.disabled=false;btn.textContent='Guardar cambios';}
 }
@@ -493,7 +498,9 @@ function renderPartidos(main) {
       '<div id="mScoreFields">'+
         '<div class="form-row"><div class="form-group"><label>Pts Local</label><input id="mHomeScore" type="number" min="0" value="0"></div><div class="form-group"><label>Pts Visitante</label><input id="mAwayScore" type="number" min="0" value="0"></div></div>'+
         '<div class="form-row"><div class="form-group"><label>Trys Local</label><input id="mHomeTries" type="number" min="0" value="0"></div><div class="form-group"><label>Trys Visitante</label><input id="mAwayTries" type="number" min="0" value="0"></div></div>'+
-        '<div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5">+1 pt si 4+ trys &nbsp;|&nbsp; +1 pt al perdedor si diferencia &le; 7 pts</div>'+
+        '<div class="form-row"><div class="form-group"><label>Amarillas Local</label><input id="mHomeYellow" type="number" min="0" value="0"></div><div class="form-group"><label>Amarillas Visitante</label><input id="mAwayYellow" type="number" min="0" value="0"></div></div>'+
+        '<div class="form-row"><div class="form-group"><label>Rojas Local</label><input id="mHomeRed" type="number" min="0" value="0"></div><div class="form-group"><label>Rojas Visitante</label><input id="mAwayRed" type="number" min="0" value="0"></div></div>'+
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5">+1 pt si 4+ trys &nbsp;|&nbsp; +1 pt al perdedor si diferencia &le; 7 pts &nbsp;|&nbsp; Juveniles: 3 pts por victoria, 1 pt bonus si &lt;3 amarillas</div>'+
       '</div>'+
       '<button class="btn-primary" id="btnAddM" onclick="addMatch()">+ Agregar partido</button>'+
     '</div>'+
@@ -633,6 +640,10 @@ async function addMatch() {
   var away_score=parseInt(document.getElementById('mAwayScore').value)||0;
   var home_tries=parseInt(document.getElementById('mHomeTries').value)||0;
   var away_tries=parseInt(document.getElementById('mAwayTries').value)||0;
+  var home_yellow=parseInt(document.getElementById('mHomeYellow').value)||0;
+  var home_red=parseInt(document.getElementById('mHomeRed').value)||0;
+  var away_yellow=parseInt(document.getElementById('mAwayYellow').value)||0;
+  var away_red=parseInt(document.getElementById('mAwayRed').value)||0;
   var tournament_id=parseInt(document.getElementById('mTourn').value);
   if(home_id===away_id) return showToast('Los equipos deben ser distintos','error');
   // team-admin: validar que su equipo participa
@@ -640,9 +651,9 @@ async function addMatch() {
     return showToast('Solo podés cargar partidos de tu equipo','error');
   var btn=document.getElementById('btnAddM'); btn.disabled=true; btn.textContent='Guardando...';
   try {
-    var res=await sbInsert('matches',{tournament_id,home_id,away_id,home_score,away_score,home_tries,away_tries,round,date,status});
+    var res=await sbInsert('matches',{tournament_id,home_id,away_id,home_score,away_score,home_tries,away_tries,home_yellow,home_red,away_yellow,away_red,round,date,status});
     var ins=res[0];
-    state.matches.push(Object.assign({},ins,{tournamentId:ins.tournament_id,homeId:ins.home_id,awayId:ins.away_id,homeScore:ins.home_score,awayScore:ins.away_score,homeTries:ins.home_tries,awayTries:ins.away_tries}));
+    state.matches.push(Object.assign({},ins,{tournamentId:ins.tournament_id,homeId:ins.home_id,awayId:ins.away_id,homeScore:ins.home_score,awayScore:ins.away_score,homeTries:ins.home_tries,awayTries:ins.away_tries,homeYellow:ins.home_yellow,homeRed:ins.home_red,awayYellow:ins.away_yellow,awayRed:ins.away_red}));
     state.lastRound=round;
     showToast('Partido cargado');
     btn.disabled=false; btn.textContent='+ Agregar partido';
@@ -672,6 +683,10 @@ function openEditMatch(id) {
     '<div class="form-group"><label>Pts Visitante</label><input id="emAS" type="number" min="0" value="'+(m.awayScore||0)+'"></div></div>'+
     '<div class="form-row"><div class="form-group"><label>Trys Local</label><input id="emHT" type="number" min="0" value="'+(m.homeTries||0)+'"></div>'+
     '<div class="form-group"><label>Trys Visitante</label><input id="emAT" type="number" min="0" value="'+(m.awayTries||0)+'"></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Amarillas Local</label><input id="emHY" type="number" min="0" value="'+(m.homeYellow||0)+'"></div>'+
+    '<div class="form-group"><label>Amarillas Visitante</label><input id="emAY" type="number" min="0" value="'+(m.awayYellow||0)+'"></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Rojas Local</label><input id="emHR" type="number" min="0" value="'+(m.homeRed||0)+'"></div>'+
+    '<div class="form-group"><label>Rojas Visitante</label><input id="emAR" type="number" min="0" value="'+(m.awayRed||0)+'"></div></div>'+
     '<button class="btn-primary" id="btnSaveM" onclick="saveEditMatch()">Guardar cambios</button>'
   );
 }
@@ -684,11 +699,15 @@ async function saveEditMatch() {
   var away_score=parseInt(document.getElementById('emAS').value)||0;
   var home_tries=parseInt(document.getElementById('emHT').value)||0;
   var away_tries=parseInt(document.getElementById('emAT').value)||0;
+  var home_yellow=parseInt(document.getElementById('emHY').value)||0;
+  var home_red=parseInt(document.getElementById('emHR').value)||0;
+  var away_yellow=parseInt(document.getElementById('emAY').value)||0;
+  var away_red=parseInt(document.getElementById('emAR').value)||0;
   var btn=document.getElementById('btnSaveM'); btn.disabled=true; btn.textContent='Guardando...';
   try {
-    await sbPatch('matches',id,{status,date,home_score,away_score,home_tries,away_tries});
+    await sbPatch('matches',id,{status,date,home_score,away_score,home_tries,away_tries,home_yellow,home_red,away_yellow,away_red});
     var idx=state.matches.findIndex(m=>m.id===id);
-    if(idx>=0)Object.assign(state.matches[idx],{status,date,homeScore:home_score,awayScore:away_score,homeTries:home_tries,awayTries:away_tries});
+    if(idx>=0)Object.assign(state.matches[idx],{status,date,homeScore:home_score,awayScore:away_score,homeTries:home_tries,awayTries:away_tries,homeYellow:home_yellow,homeRed:home_red,awayYellow:away_yellow,awayRed:away_red});
     showToast('Partido actualizado'); closeModal(); onMRoundChange();
   } catch(e){showToast('Error: '+e.message,'error');btn.disabled=false;btn.textContent='Guardar cambios';}
 }

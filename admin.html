@@ -616,9 +616,9 @@ function renderMatchList(round,tid) {
   var el=document.getElementById('matchList'); if(!el)return;
   var isSuperadmin=currentUser.role==='superadmin';
   var filtered=state.matches.filter(m=>m.tournamentId===tid&&m.round===round);
-  // team-admin: show all matches of their round but only allow edit on matches involving their team
-  if(!filtered.length){el.innerHTML='<div class="empty-state">No hay partidos para esta fecha.</div>';return;}
-  el.innerHTML=filtered.map(m=>{
+  var filteredByes=state.byes.filter(b=>b.tournament_id===tid&&b.round===round);
+  if(!filtered.length&&!filteredByes.length){el.innerHTML='<div class="empty-state">No hay partidos para esta fecha.</div>';return;}
+  var matchesHtml=filtered.map(m=>{
     var h=state.teams.find(t=>t.id===m.homeId),a=state.teams.find(t=>t.id===m.awayId);
     if(!h||!a)return '';
     var canEdit=isSuperadmin||(m.homeId===currentUser.team_id||m.awayId===currentUser.team_id);
@@ -628,6 +628,13 @@ function renderMatchList(round,tid) {
     var btns=canEdit?'<div class="btn-group"><button class="edit-btn" onclick="openEditMatch('+m.id+')">&#9998;</button>'+(isSuperadmin?'<button class="del-btn" onclick="deleteMatch('+m.id+')">&#x2715;</button>':'')+'</div>':'<span style="font-size:11px;color:var(--muted)">solo lectura</span>';
     return '<div class="list-item"><div class="list-item-left" style="flex-direction:column;align-items:flex-start;gap:2px"><div style="font-weight:600;font-size:13px">'+h.name+' '+scoreStr+' '+a.name+'</div><div style="font-size:11px;color:var(--muted)">'+m.round+' · '+m.date+'<span class="badge-pill '+pillClass+'">'+pillText+'</span></div></div>'+btns+'</div>';
   }).join('');
+  var byesHtml=filteredByes.map(b=>{
+    var team=state.teams.find(t=>t.id===b.team_id);
+    if(!team)return '';
+    var btns='<div class="btn-group"><button class="del-btn" onclick="deleteBye('+b.id+')">&#x2715;</button></div>';
+    return '<div class="list-item"><div class="list-item-left" style="flex-direction:column;align-items:flex-start;gap:2px"><div style="font-weight:600;font-size:13px;opacity:0.6">'+team.name+' — <em>Fecha Libre</em></div><div style="font-size:11px;color:var(--muted)">'+b.round+' · '+b.date+'</div></div>'+btns+'</div>';
+  }).join('');
+  el.innerHTML=matchesHtml+byesHtml;
 }
 
 async function addMatch() {
@@ -664,6 +671,12 @@ async function addMatch() {
 async function deleteMatch(id) {
   if(!confirm('Eliminar partido?')) return;
   try { await sbDelete('matches',id); state.matches=state.matches.filter(m=>m.id!==id); showToast('Eliminado'); onMRoundChange(); }
+  catch(e){showToast('Error: '+e.message,'error');}
+}
+
+async function deleteBye(id) {
+  if(!confirm('Eliminar fecha libre?')) return;
+  try { await sbDelete('team_byes',id); state.byes=state.byes.filter(b=>b.id!==id); showToast('Fecha libre eliminada'); onMRoundChange(); }
   catch(e){showToast('Error: '+e.message,'error');}
 }
 

@@ -96,7 +96,7 @@ const SB_URL = 'https://hwpodschtbigiyceirpj.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh3cG9kc2NodGJpZ2l5Y2VpcnBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MjUzOTgsImV4cCI6MjA5MDEwMTM5OH0.TPnq-4sEYhzqLmhjvbTuJhBHw-TbMeqfY5RrT65NiZE';
 const HEADERS = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY };
 
-let state = { tournaments:[], teams:[], matches:[], selectedTournament:null, mainTab:'resultados' };
+let state = { tournaments:[], teams:[], matches:[], byes:[], selectedTournament:null, mainTab:'resultados' };
 
 async function loadData() {
   try {
@@ -104,10 +104,12 @@ async function loadData() {
       fetch(SB_URL+'/rest/v1/tournaments?select=*&order=id.asc',{headers:HEADERS}).then(r=>r.json()),
       fetch(SB_URL+'/rest/v1/teams?select=*&order=id.asc',{headers:HEADERS}).then(r=>r.json()),
       fetch(SB_URL+'/rest/v1/matches?select=*&order=id.asc',{headers:HEADERS}).then(r=>r.json()),
+      fetch(SB_URL+'/rest/v1/team_byes?select=*&order=id.asc',{headers:HEADERS}).then(r=>r.json()),
     ]);
     state.tournaments = r[0];
     state.teams = r[1].map(t=>Object.assign({},t,{tournamentId:t.tournament_id}));
-    state.matches = r[2].map(m=>Object.assign({},m,{tournamentId:m.tournament_id,homeId:m.home_id,awayId:m.away_id,homeScore:m.home_score,awayScore:m.away_score,homeTries:m.home_tries,awayTries:m.away_tries}));
+    state.matches = r[2].map(m=>Object.assign({},m,{tournamentId:m.tournament_id,homeId:m.home_id,awayId:m.away_id,homeScore:m.home_score,awayScore:m.away_score,homeTries:m.home_tries,awayTries:m.away_tries,homeYellow:m.home_yellow,homeRed:m.home_red,awayYellow:m.away_yellow,awayRed:m.away_red}));
+    state.byes = r[3] || [];
     state.selectedTournament = state.tournaments.length ? state.tournaments[0].id : null;
     renderSidebar(); renderMain();
   } catch(e) {
@@ -166,8 +168,11 @@ function renderMain() {
   if(state.mainTab==='resultados'){
     var matches=getTournamentMatches(tid), rounds=[], html='';
     matches.forEach(m=>{if(rounds.indexOf(m.round)<0)rounds.push(m.round);});
+    state.byes.forEach(b=>{var t=state.tournaments.find(x=>x.id===b.tournament_id);if(t&&t.id===tid&&rounds.indexOf(b.round)<0)rounds.push(b.round);});
+    rounds.sort();
     rounds.forEach(round=>{
       var rMatches=matches.filter(m=>m.round===round);
+      var rByes=state.byes.filter(b=>b.tournament_id===tid&&b.round===round);
       html+='<div class="section-label">'+round+'</div>';
       rMatches.forEach(m=>{
         var home=getTeam(m.homeId),away=getTeam(m.awayId); if(!home||!away)return;
@@ -178,6 +183,11 @@ function renderMain() {
         else{var d=new Date(m.date+'T12:00:00'),dd=d.toLocaleDateString('es-AR',{day:'numeric',month:'short'});statusHtml='<div class="match-status status-upcoming">Proximamente</div><div class="match-date">'+dd+'</div>';}
         var scoreHtml=m.status!=='upcoming'?'<div class="score-box"><div class="score-num '+(homeWin?'winner':'')+'">'+m.homeScore+'</div><div class="score-sep">:</div><div class="score-num '+(awayWin?'winner':'')+'">'+m.awayScore+'</div></div>':'<div style="color:var(--muted);font-size:20px;font-weight:700">vs</div>';
         html+='<div class="match-card"><div class="team-side home"><div class="team-badge" style="background:'+home.color+'22;color:'+home.color+'">'+home.short+'</div><div><div class="team-name '+(homeWin?'winner':'')+'">'+home.name+'</div></div></div><div class="score-center">'+scoreHtml+statusHtml+'</div><div class="team-side away"><div class="team-badge" style="background:'+away.color+'22;color:'+away.color+'">'+away.short+'</div><div><div class="team-name '+(awayWin?'winner':'')+'">'+away.name+'</div></div></div></div>';
+      });
+      rByes.forEach(bye=>{
+        var team=getTeam(bye.team_id);
+        if(!team)return;
+        html+='<div class="match-card" style="opacity:0.6;border-style:dashed"><div class="team-side home"><div class="team-badge" style="background:'+team.color+'22;color:'+team.color+'">'+team.short+'</div><div><div class="team-name">'+team.name+'</div></div></div><div class="score-center"><div style="color:var(--muted);font-size:14px;font-weight:600">Fecha Libre</div></div></div>';
       });
     });
     if(!html)html='<div class="empty-state">No hay partidos en este torneo todavia.</div>';

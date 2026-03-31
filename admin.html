@@ -391,8 +391,11 @@ function renderEquipos(main) {
   var tournOpts = state.tournaments.map(t=>'<option value="'+t.id+'">'+t.name+'</option>').join('');
   var list = state.teams.map(t=>{
     var tourn=state.tournaments.find(x=>x.id===t.tournamentId);
+    var badge = t.logo_url 
+      ? '<img src="'+t.logo_url+'" style="width:36px;height:36px;border-radius:50%;object-fit:cover;background:#fff;border:1px solid #ddd">'
+      : '<div class="item-badge" style="background:#fff;color:#666;border:1px solid #ddd">'+t.short+'</div>';
     return '<div class="list-item">'+
-      '<div class="list-item-left"><div class="item-badge" style="background:'+t.color+'22;color:'+t.color+'">'+t.short+'</div>'+
+      '<div class="list-item-left">'+badge+
       '<div><div style="font-weight:600">'+t.name+'</div><div style="font-size:11px;color:var(--muted)">'+(tourn?tourn.name:'—')+(t.zone ? ' · Zona '+t.zone : '')+'</div></div></div>'+
       '<div class="btn-group"><button class="edit-btn" onclick="openEditTeam('+t.id+')">&#9998;</button><button class="del-btn" onclick="deleteTeam('+t.id+')">&#x2715;</button></div></div>';
   }).join('') || '<div class="empty-state">Sin equipos</div>';
@@ -406,16 +409,37 @@ function renderEquipos(main) {
       '<div class="form-group"><label>Nombre</label><input id="eName" type="text" placeholder="ej: Jockey Club RC"></div>'+
       '<div class="form-row">'+
         '<div class="form-group"><label>Abreviatura (hasta 6)</label><input id="eShort" type="text" maxlength="6" placeholder="JCR"></div>'+
-        '<div class="form-group"><label>Color</label><input id="eColor" type="color" value="#4a90d9" style="height:42px;padding:4px"></div>'+
       '</div>'+
+      '<div class="form-group"><label>Logo (PNG transparente)</label><input id="eLogo" type="file" accept="image/png"></div>'+
       '<button class="btn-primary" id="btnAddE" onclick="addTeam()">+ Agregar equipo</button>'+
     '</div>'+
     '<div class="section-card"><div class="section-card-title">Equipos existentes</div>'+list+'</div>';
   onTeamTournamentChange();
 }
 
+async function uploadTeamLogo(file, tournamentId) {
+  if (!file) return null;
+  try {
+    var formData = new FormData();
+    formData.append('file', file);
+    var timestamp = Date.now();
+    var filename = 'team_' + timestamp + '.png';
+    var response = await fetch(SB_URL + '/storage/v1/object/team-logos/' + filename, {
+      method: 'POST',
+      headers: {'Authorization': 'Bearer ' + SB_KEY},
+      body: formData
+    });
+    if (!response.ok) throw new Error('Upload failed: ' + response.statusText);
+    return SB_URL + '/storage/v1/object/public/team-logos/' + filename;
+  } catch (e) {
+    showToast('Error al subir logo: ' + e.message, 'error');
+    return null;
+  }
+}
+
 async function addTeam() {
-  var name=document.getElementById('eName').value.trim(), short=document.getElementById('eShort').value.trim().toUpperCase(), color=document.getElementById('eColor').value, tournament_id=parseInt(document.getElementById('eTourn').value);
+  var name=document.getElementById('eName').value.trim(), short=document.getElementById('eShort').value.trim().toUpperCase(), tournament_id=parseInt(document.getElementById('eTourn').value);
+  var logoFile=document.getElementById('eLogo').files[0];
   var tourn=state.tournaments.find(function(t){return t.id===tournament_id;});
   var zone=null;
   if(tourn&&tourn.has_zones){
@@ -425,7 +449,11 @@ async function addTeam() {
   if(!name||!short) return showToast('Completa nombre y abreviatura','error');
   var btn=document.getElementById('btnAddE'); btn.disabled=true; btn.textContent='Guardando...';
   try {
-    var res=await sbInsert('teams',{name,short,color,tournament_id,zone});
+    var logo_url=null;
+    if(logoFile){
+      logo_url=await uploadTeamLogo(logoFile,tournament_id);
+    }
+    var res=await sbInsert('teams',{name,short,color:'#FFFFFF',tournament_id,zone,logo_url});
     state.teams.push(Object.assign({},res[0],{tournamentId:res[0].tournament_id}));
     showToast('Equipo creado'); navigate('equipos');
   } catch(e){showToast('Error: '+e.message,'error');btn.disabled=false;btn.textContent='+ Agregar equipo';}
@@ -444,19 +472,25 @@ function openEditTeam(id) {
     '<input type="hidden" id="etTeamId" value="'+t.id+'">'+
     '<div class="form-group"><label>Torneo</label><input type="text" value="'+(tourn?tourn.name:'?')+'" disabled></div>'+
     '<div class="form-group"><label>Nombre</label><input id="etTeamName" type="text" value="'+t.name+'"></div>'+
-    '<div class="form-row"><div class="form-group"><label>Abreviatura (hasta 6)</label><input id="etTeamShort" type="text" maxlength="6" value="'+t.short+'"></div>'+
-    '<div class="form-group"><label>Color</label><input id="etTeamColor" type="color" value="'+t.color+'" style="height:42px;padding:4px"></div></div>'+
+    '<div class="form-row"><div class="form-group"><label>Abreviatura (hasta 6)</label><input id="etTeamShort" type="text" maxlength="6" value="'+t.short+'"></div></div>'+
+    '<div class="form-group"><label>Logo (PNG transparente)</label><input id="etTeamLogo" type="file" accept="image/png"></div>'+
     '<button class="btn-primary" id="btnSaveET" onclick="saveEditTeam()">Guardar cambios</button>'
   );
 }
 
 async function saveEditTeam() {
-  var id=parseInt(document.getElementById('etTeamId').value), name=document.getElementById('etTeamName').value.trim(), short=document.getElementById('etTeamShort').value.trim().toUpperCase(), color=document.getElementById('etTeamColor').value;
+  var id=parseInt(document.getElementById('etTeamId').value), name=document.getElementById('etTeamName').value.trim(), short=document.getElementById('etTeamShort').value.trim().toUpperCase();
+  var logoFile=document.getElementById('etTeamLogo').files[0];
   if(!name||!short) return showToast('Completa nombre y abreviatura','error');
   var btn=document.getElementById('btnSaveET'); btn.disabled=true; btn.textContent='Guardando...';
   try {
-    await sbPatch('teams',id,{name,short,color});
-    var idx=state.teams.findIndex(t=>t.id===id); if(idx>=0)Object.assign(state.teams[idx],{name,short,color});
+    var updateData={name,short};
+    if(logoFile){
+      updateData.logo_url=await uploadTeamLogo(logoFile,0);
+    }
+    await sbPatch('teams',id,updateData);
+    var idx=state.teams.findIndex(t=>t.id===id);
+    if(idx>=0)Object.assign(state.teams[idx],updateData);
     showToast('Equipo actualizado'); closeModal(); navigate('equipos');
   } catch(e){showToast('Error: '+e.message,'error');btn.disabled=false;btn.textContent='Guardar cambios';}
 }

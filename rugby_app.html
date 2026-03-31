@@ -254,6 +254,24 @@ function getTeam(id) { return state.teams.find(function(t){ return t.id === id; 
 function getTournamentTeams(tid) { return state.teams.filter(function(t){ return t.tournamentId === tid; }); }
 function getTournamentMatches(tid) { return state.matches.filter(function(m){ return m.tournamentId === tid; }); }
 
+function getTeamBadgeHtml(team, size, className) {
+  if(!team) return '';
+  size = size || '36px';
+  className = className || 'team-badge';
+  if(team.logo_url) {
+    return '<img src="' + team.logo_url + '" style="width:' + size + ';height:' + size + ';border-radius:50%;object-fit:cover;background:#fff;border:1px solid #ddd" class="' + className + '">';
+  }
+  return '<div class="' + className + '" style="background:#f0f0f0;color:#666;border:1px solid #ddd;font-size:13px">' + team.short + '</div>';
+}
+
+function getTeamRowBadgeHtml(team) {
+  if(!team) return '';
+  if(team.logo_url) {
+    return '<img src="' + team.logo_url + '" style="width:24px;height:24px;border-radius:50%;object-fit:cover;background:#fff;border:1px solid #ddd;margin-right:6px">';
+  }
+  return '<span class="team-row-badge" style="background:#f0f0f0;color:#666;border:1px solid #ddd;margin-right:6px">' + team.short + '</span>';
+}
+
 function calcStandings(tid, zone) {
   var tournament = state.tournaments.find(function(t){ return t.id === tid; });
   var isJuveniles = (tournament && tournament.category === 'juveniles');
@@ -392,12 +410,12 @@ function renderMain() {
           : '<div style="color:var(--muted);font-size:20px;font-weight:700">vs</div>';
         html += '<div class="match-card">' +
           '<div class="team-side home">' +
-            '<div class="team-badge" style="background:' + home.color + '22;color:' + home.color + '">' + home.short + '</div>' +
+            getTeamBadgeHtml(home) +
             '<div><div class="team-name ' + (homeWin?'winner':'') + '">' + home.name + '</div></div>' +
           '</div>' +
           '<div class="score-center">' + scoreHtml + statusHtml + '</div>' +
           '<div class="team-side away">' +
-            '<div class="team-badge" style="background:' + away.color + '22;color:' + away.color + '">' + away.short + '</div>' +
+            getTeamBadgeHtml(away) +
             '<div><div class="team-name ' + (awayWin?'winner':'') + '">' + away.name + '</div></div>' +
           '</div>' +
         '</div>';
@@ -405,7 +423,7 @@ function renderMain() {
       rByes.forEach(function(bye) {
         var team = getTeam(bye.team_id);
         if (!team) return;
-        html += '<div class="match-card" style="opacity:0.6;border-style:dashed"><div class="team-side home"><div class="team-badge" style="background:' + team.color + '22;color:' + team.color + '">' + team.short + '</div><div><div class="team-name">' + team.name + '</div></div></div><div class="score-center"><div style="color:var(--muted);font-size:14px;font-weight:600">Fecha Libre</div></div></div>';
+        html += '<div class="match-card" style="opacity:0.6;border-style:dashed"><div class="team-side home">' + getTeamBadgeHtml(team) + '<div><div class="team-name">' + team.name + '</div></div></div><div class="score-center"><div style="color:var(--muted);font-size:14px;font-weight:600">Fecha Libre</div></div></div>';
       });
     });
     if (!html) html = '<div class="empty-state">No hay partidos en este torneo todavia.</div>';
@@ -424,7 +442,7 @@ function renderMain() {
           var rows = standings.map(function(row, i) {
             return '<tr class="' + (i < 4 ? 'top-4' : '') + '">' +
               '<td>' + (i+1) + '</td>' +
-              '<td><span class="team-row-badge" style="background:' + row.team.color + '22;color:' + row.team.color + '">' + row.team.short + '</span>' + row.team.name + '</td>' +
+              '<td>' + getTeamRowBadgeHtml(row.team) + row.team.name + '</td>' +
               '<td>' + row.pj + '</td><td>' + row.pg + '</td><td>' + row.pe + '</td><td>' + row.pp + '</td>' +
               '<td>' + row.pf + '</td><td>' + row.pc + '</td>' +
               '<td class="pts-cell">' + row.pts + '</td></tr>';
@@ -441,7 +459,7 @@ function renderMain() {
       var rows = standings.map(function(row, i) {
         return '<tr class="' + (i < 4 ? 'top-4' : '') + '">' +
           '<td>' + (i+1) + '</td>' +
-          '<td><span class="team-row-badge" style="background:' + row.team.color + '22;color:' + row.team.color + '">' + row.team.short + '</span>' + row.team.name + '</td>' +
+          '<td>' + getTeamRowBadgeHtml(row.team) + row.team.name + '</td>' +
           '<td>' + row.pj + '</td><td>' + row.pg + '</td><td>' + row.pe + '</td><td>' + row.pp + '</td>' +
           '<td>' + row.pf + '</td><td>' + row.pc + '</td>' +
           '<td class="pts-cell">' + row.pts + '</td></tr>';

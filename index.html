@@ -121,7 +121,6 @@ function getTeam(id){return state.teams.find(t=>t.id===id);}
 function getTournamentTeams(tid){return state.teams.filter(t=>t.tournamentId===tid);}
 function getTournamentMatches(tid){return state.matches.filter(m=>m.tournamentId===tid);}
 
-<<<<<<< HEAD
 function getTeamBadgeHtml(team){
   if(!team)return'';
   if(team.logo_url)return'<img src="'+team.logo_url+'" style="width:36px;height:36px;border-radius:50%;object-fit:cover;background:#fff;border:1px solid #ddd">';
@@ -134,24 +133,6 @@ function getTeamRowBadgeHtml(team){
   return'<span class="team-row-badge" style="background:#f0f0f0;color:#666;border:1px solid #ddd;margin-right:6px">'+team.short+'</span>';
 }
 
-=======
-function getTeamBadgeHtml(team, size='36px', className='team-badge') {
-  if(!team) return '';
-  if(team.logo_url) {
-    return '<img src="'+team.logo_url+'" style="width:'+size+';height:'+size+';border-radius:50%;object-fit:cover;background:#fff;border:1px solid #ddd" class="'+className+'">';
-  }
-  return '<div class="'+className+'" style="background:#f0f0f0;color:#666;border:1px solid #ddd;font-size:13px">'+team.short+'</div>';
-}
-
-function getTeamRowBadgeHtml(team) {
-  if(!team) return '';
-  if(team.logo_url) {
-    return '<img src="'+team.logo_url+'" style="width:24px;height:24px;border-radius:50%;object-fit:cover;background:#fff;border:1px solid #ddd;margin-right:6px">';
-  }
-  return '<span class="team-row-badge" style="background:#f0f0f0;color:#666;border:1px solid #ddd;margin-right:6px">'+team.short+'</span>';
-}
-
->>>>>>> 379b1548e0ea55eee063a746bbcc22701cefa5bf
 function calcStandings(tid, zone) {
   var tournament=state.tournaments.find(t=>t.id===tid);
   var isJuveniles=(tournament && tournament.category==='juveniles');
